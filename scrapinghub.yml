@@ -1,0 +1,5 @@
+# Zyte Scrapy Cloud deploy config. Deploy with:  shub deploy 869022
+# (run from this folder — tools/ecass-scrapy — which holds scrapy.cfg).
+project: 869022
+requirements:
+  file: requirements.txt
