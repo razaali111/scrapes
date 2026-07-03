@@ -1,0 +1,9 @@
+.env
+output/*.jsonl
+output/*.csv
+__pycache__/
+*.pyc
+.venv/
+venv/
+search_terms.txt
+!.gitkeep
