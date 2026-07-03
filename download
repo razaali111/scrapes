@@ -1,9 +1,81 @@
-.env
-output/*.jsonl
-output/*.csv
-__pycache__/
-*.pyc
-.venv/
-venv/
-search_terms.txt
-!.gitkeep
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # read .env in the project root
+
+BOT_NAME = "ecass"
+SPIDER_MODULES = ["ecass.spiders"]
+NEWSPIDER_MODULE = "ecass.spiders"
+
+# eCass is a normal server-rendered site; obey-robots would block /ProductCheck.
+ROBOTSTXT_OBEY = False
+COOKIES_ENABLED = True            # session + antiforgery cookies flow automatically
+COOKIES_DEBUG = False
+
+# Look like the browser we reverse-engineered against.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+DEFAULT_REQUEST_HEADERS = {
+    "Accept-Language": "en-GB,en;q=0.9",
+}
+
+# Throughput vs. politeness. This is the tuning surface — Scrapy parallelises the
+# per-row net-calc lookups for you. From a residential IP you can push these up;
+# back them off if eCass starts 429/500-ing.
+CONCURRENT_REQUESTS = int(os.getenv("ECASS_CONCURRENCY", "6"))
+CONCURRENT_REQUESTS_PER_DOMAIN = int(os.getenv("ECASS_CONCURRENCY", "6"))
+DOWNLOAD_DELAY = float(os.getenv("ECASS_DELAY", "0.15"))
+AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_START_DELAY = 0.3
+AUTOTHROTTLE_MAX_DELAY = 15.0
+AUTOTHROTTLE_TARGET_CONCURRENCY = float(os.getenv("ECASS_CONCURRENCY", "6"))
+AUTOTHROTTLE_DEBUG = False
+
+# Retry transient failures / soft blocks.
+RETRY_ENABLED = True
+RETRY_TIMES = 3
+RETRY_HTTP_CODES = [429, 500, 502, 503, 504, 522, 524, 408]
+DOWNLOAD_TIMEOUT = 45
+
+# Write every offer to a JSONL file as a local backup, regardless of Supabase.
+FEEDS = {
+    "output/ecass_offers_%(time)s.jsonl": {
+        "format": "jsonlines",
+        "encoding": "utf8",
+        "overwrite": False,
+        "store_empty": False,
+    },
+}
+
+# Upsert into Supabase ecass_offers when SUPABASE creds are set (else the pipeline
+# no-ops and you just get the JSONL).
+ITEM_PIPELINES = {
+    "ecass.pipelines.SupabaseUpsertPipeline": 300,
+}
+
+REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
+TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+LOG_LEVEL = os.getenv("ECASS_LOG_LEVEL", "INFO")
+
+# ── Credentials as Scrapy settings ──────────────────────────────────────────
+# Locally these come from .env (above). On Zyte Scrapy Cloud there is no .env —
+# set them in the project's Settings → Raw settings instead (ECASS_USER,
+# ECASS_PASS, SUPABASE_URL, SUPABASE_SERVICE_KEY). Baking the env values in here
+# lets the spider/pipeline read them from settings either way.
+ECASS_USER = os.getenv("ECASS_USER", "")
+ECASS_PASS = os.getenv("ECASS_PASS", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+# ── Optional: Zyte Smart Proxy (residential IPs, to beat the datacenter block) ─
+# Zyte Cloud runs on datacenter IPs that eCass blocks — enable the proxy to get
+# residential exits. eCass needs a stable session, so this rotates per-run, not
+# per-request (a single sticky IP for the whole crawl). Middleware is always
+# registered but inert unless ZYTE_SMARTPROXY_ENABLED=True.
+DOWNLOADER_MIDDLEWARES = {
+    "scrapy_zyte_smartproxy.ZyteSmartProxyMiddleware": 610,
+}
+ZYTE_SMARTPROXY_ENABLED = str(os.getenv("ZYTE_SMARTPROXY_ENABLED", "false")).lower() == "true"
+ZYTE_SMARTPROXY_APIKEY = os.getenv("ZYTE_SMARTPROXY_APIKEY", "")
